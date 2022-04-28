@@ -14,7 +14,6 @@ pub struct Cms {
     client_registry: LookupMap<String, Vec<String>>,
 }
 
-// #[near_bindgen]
 impl Default for Cms {
     fn default() -> Self {
         Self {

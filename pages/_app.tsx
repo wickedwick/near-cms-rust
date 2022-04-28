@@ -8,18 +8,21 @@ import { NearContext } from '../context/NearContext';
 import { CmsContract } from '../types/contract';
   
 const initContract = async () => {
+  const networkConfiguration: NetworkConfiguration = {
+    networkId: 'testnet',
+    nodeUrl: 'https://rpc.testnet.near.org',
+    contractName: 'dev-1651110034797-23872797125041',
+    walletUrl: 'https://wallet.testnet.near.org',
+    helperUrl: 'https://helper.testnet.near.org'
+  }
+  const keyStore = new nearAPI.keyStores.BrowserLocalStorageKeyStore() 
   const near = await nearAPI.connect({ keyStore, ...networkConfiguration })
   const walletConnection = new nearAPI.WalletConnection(near, '')
   let currentUser
 
-  const networkConfiguration: NetworkConfiguration = {
-    networkId: 'testnet',
-    nodeUrl: 'https://rpc.testnet.near.org',
-    contractName: 'wickham.testnet',
-    walletUrl: 'https://wallet.testnet.near.org',
-    helperUrl: 'https://helper.testnet.near.org'
-  }
+  console.log('1')
 
+  console.log('2')
   if (walletConnection.getAccountId()) {
     currentUser = {
       accountId: walletConnection.getAccountId(),
@@ -27,9 +30,11 @@ const initContract = async () => {
     } as NearUser
   }
  
+  console.log('3')
   const viewMethods: string[] = ['get_content_type', 'get_content_types', 'get_contents', 'get_content', 'get_user_role', 'getUser', 'getUsers', 'get_client_registry']
   const changeMethods: string[] = ['set_content_type', 'set_content', 'set_user_role', 'set_client_registry']
 
+  console.log('4')
   const contract = new nearAPI.Contract(
     walletConnection.account(),
     networkConfiguration.contractName,
@@ -42,12 +47,11 @@ const initContract = async () => {
   return { contract, currentUser, walletConnection }
 }
 
-const MyApp = async ({ Component, pageProps }: AppProps) => {
+const MyApp = ({ Component, pageProps }: AppProps) => {
   const [currentUser, setCurrentUser] = useState<UserRole | undefined>(undefined)
   const [cmsContract, setContract] = useState<CmsContract | null>(null)
   const [nearConfig, setNearConfig] = useState<NetworkConfiguration | null>(null)
   const [walletConnection, setWalletConnection] = useState<nearAPI.WalletConnection | null>(null)
-  const keyStore = new nearAPI.keyStores.BrowserLocalStorageKeyStore() 
 
   const setDefaultUser = (accountId: string) => {
     const userRole: UserRole = {
@@ -79,7 +83,7 @@ const MyApp = async ({ Component, pageProps }: AppProps) => {
 
       // instantiateIpfs(setIpfs)
     })
-  }, [cmsContract, nearConfig])
+  }, [])
 
   const initialState = {
     contract: cmsContract,
@@ -91,7 +95,10 @@ const MyApp = async ({ Component, pageProps }: AppProps) => {
 
   return (
     <NearContext.Provider value={initialState}>
-        <Component {...pageProps} />
+      {cmsContract && (
+        <p>CMS Contract loaded</p>
+      )}
+      <Component {...pageProps} />
     </NearContext.Provider>
   )
 }

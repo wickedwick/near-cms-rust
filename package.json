@@ -3,15 +3,19 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "cargo build --target wasm32-unknown-unknown --release",
-    "build:web": "parcel build ./frontend/index.html --public-url ./ --no-minify",
-    "deploy:dev": "npm run build && near dev-deploy res/status_message.wasm",
-    "dev": "npm run deploy:dev && npm start",
-    "start": "npm run build && npm run build:web && env-cmd -f ./neardev/dev-account.env parcel ./frontend/index.html",
-    "postbuild": "cp target/wasm32-unknown-unknown/release/status_message.wasm ./res/",
+    "build": "cd cms && cargo build --target wasm32-unknown-unknown --release",
+    "postbuild": "cp cms/target/wasm32-unknown-unknown/release/cms.wasm ./out/main.wasm",
+    "deploy:contract": "near deploy",
+    "deploy": "yarn build && yarn deploy:contract",
+    "deploy:dev": "yarn build && near dev-deploy",
+    "dev": "yarn deploy:dev && yarn start:dev",
+    "prestart": "yarn build && yarn deploy:contract",
+    "start": "next start",
+    "start:dev": "env-cmd -f ./neardev/dev-account.env next dev",
+    "test:cargo": "cargo test -- --nocapture",
+    "test": "yarn build && yarn test:cargo && jest",
     "lint": "next lint",
     "export": "next export",
-    "test": "jest",
     "test:watch": "jest --watch"
   },
   "dependencies": {
@@ -25,8 +29,10 @@
     "@types/node": "17.0.23",
     "@types/react": "18.0.0",
     "@types/react-dom": "18.0.0",
+    "env-cmd": "^10.1.0",
     "eslint": "8.13.0",
     "eslint-config-next": "12.1.4",
+    "jest": "^28.0.2",
     "typescript": "4.6.3"
   }
 }
