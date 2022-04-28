@@ -3,12 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "cargo build --target wasm32-unknown-unknown --release",
+    "build:web": "parcel build ./frontend/index.html --public-url ./ --no-minify",
+    "deploy:dev": "npm run build && near dev-deploy res/status_message.wasm",
+    "dev": "npm run deploy:dev && npm start",
+    "start": "npm run build && npm run build:web && env-cmd -f ./neardev/dev-account.env parcel ./frontend/index.html",
+    "postbuild": "cp target/wasm32-unknown-unknown/release/status_message.wasm ./res/",
+    "lint": "next lint",
+    "export": "next export",
+    "test": "jest",
+    "test:watch": "jest --watch"
   },
   "dependencies": {
+    "near-api-js": "^0.44.2",
+    "near-cli": "^3.2.0",
     "next": "12.1.4",
     "react": "18.0.0",
     "react-dom": "18.0.0"
