@@ -1,11 +1,12 @@
-import * as nearAPI from 'near-api-js';
-import { NetworkConfiguration } from '../types/configuration';
-import '../styles/globals.css';
+import * as nearAPI from 'near-api-js'
+import React from 'react'
+import { NetworkConfiguration } from '../types/configuration'
+//import '../styles/globals.css'
 import type { AppProps } from 'next/app'
-import { NearUser, UserRole } from '../types/app';
-import { useEffect, useState } from 'react';
-import { NearContext } from '../context/NearContext';
-import { CmsContract } from '../types/contract';
+import { NearUser, UserRole } from '../types/app'
+import { useEffect, useState } from 'react'
+import { NearContext } from '../context/NearContext'
+import { CmsContract } from '../types/contract'
   
 const initContract = async () => {
   const networkConfiguration: NetworkConfiguration = {
@@ -20,9 +21,6 @@ const initContract = async () => {
   const walletConnection = new nearAPI.WalletConnection(near, '')
   let currentUser
 
-  console.log('1')
-
-  console.log('2')
   if (walletConnection.getAccountId()) {
     currentUser = {
       accountId: walletConnection.getAccountId(),
@@ -30,11 +28,9 @@ const initContract = async () => {
     } as NearUser
   }
  
-  console.log('3')
   const viewMethods: string[] = ['get_content_type', 'get_content_types', 'get_contents', 'get_content', 'get_user_role', 'getUser', 'getUsers', 'get_client_registry']
   const changeMethods: string[] = ['set_content_type', 'set_content', 'set_user_role', 'set_client_registry']
 
-  console.log('4')
   const contract = new nearAPI.Contract(
     walletConnection.account(),
     networkConfiguration.contractName,
@@ -67,7 +63,7 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
       setNearConfig(nearConfig)
       setWalletConnection(walletConnection)
       setContract(contract as CmsContract)
-      
+
       currentUser && cmsContract && (
         cmsContract.get_user_role({ account_id: currentUser.accountId })
           .then((user: UserRole) => {
@@ -83,14 +79,14 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
 
       // instantiateIpfs(setIpfs)
     })
-  }, [])
+  }, [nearConfig])
 
   const initialState = {
     contract: cmsContract,
     currentUser,
     nearConfig,
     wallet: walletConnection,
-    setCurrentUser,
+    setCurrentUser: () => setCurrentUser,
   }
 
   return (

@@ -1,5 +1,11 @@
 import * as nearAPI from 'near-api-js'
-import { Content, ContentType, UserRole } from './app'
+import { Content, ContentType, NearUser, UserRole } from './app'
+
+export type NearContract = {
+  contract: nearAPI.Contract
+  currentUser: NearUser | undefined
+  walletConnection: nearAPI.WalletConnection
+}
 
 export interface CmsContract extends nearAPI.Contract {
   // getUsers: () => Promise<UserRole[]>

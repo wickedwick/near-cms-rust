@@ -14,5 +14,5 @@ export const NearContext = React.createContext({
   currentUser: UserRole | undefined,
   wallet: nearAPI.WalletConnection | null,
   nearConfig: NetworkConfiguration | null,
-  setCurrentUser: () => void,
+  setCurrentUser: (user: UserRole | undefined) => void,
 })
