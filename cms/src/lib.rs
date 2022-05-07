@@ -8,7 +8,8 @@ near_sdk::setup_alloc!();
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Cms {
-    content_types: UnorderedMap<String, ContentType>,
+    //content_types: UnorderedMap<String, ContentType>,
+    content_types: LookupMap<String, Vec<ContentType>>,
     content: UnorderedMap<String, Content>,
     user_registry: LookupMap<String, Vec<UserRole>>,
     client_registry: LookupMap<String, Vec<String>>,
@@ -17,7 +18,7 @@ pub struct Cms {
 impl Default for Cms {
     fn default() -> Self {
         Self {
-            content_types: UnorderedMap::new(b"ct".to_vec()),
+            content_types: LookupMap::new(b"ct".to_vec()),
             content: UnorderedMap::new(b"c".to_vec()),
             user_registry: LookupMap::new(b"ur".to_vec()),
             client_registry: LookupMap::new(b"cr".to_vec()),
@@ -29,30 +30,36 @@ impl Default for Cms {
 impl Cms {
     pub fn set_content_type(&mut self, name: String, description: String, fields: Vec<String>) {
         let name_clone = name.clone();
+        let account_id = env::signer_account_id();
         let mut fields_lookup_map = LookupMap::new(b"f".to_vec());
 
         for field in fields {
             fields_lookup_map.insert(&name_clone, &field);
         }
 
-        self.content_types.insert(
-            &name_clone,
-            &ContentType {
-                name,
-                description,
-                fields: fields_lookup_map,
-            },
-        );
+        // get the content types by user
+        let mut content_types = self.content_types.get(&account_id).unwrap_or_default();
+        // add the new content type
+        content_types.push(ContentType {
+            name,
+            description,
+            fields: fields_lookup_map,
+        });
+
+        self.content_types.insert(&account_id, &content_types);
     }
 
     #[result_serializer(borsh)]
     pub fn get_content_type(&self, name: String) -> Option<ContentType> {
-        return self.content_types.get(&name);
+        let account_id = env::signer_account_id();
+        let content_types = self.content_types.get(&account_id)?;
+        return content_types.iter().find(|ct| ct.name == name).cloned();
     }
 
     #[result_serializer(borsh)]
     pub fn get_content_types(&self) -> Vec<ContentType> {
-        return self.content_types.values_as_vector().to_vec();
+        let account_id = env::signer_account_id();
+        return self.content_types.get(&account_id).unwrap_or_default();
     }
 
     #[result_serializer(borsh)]
@@ -64,17 +71,16 @@ impl Cms {
         is_encrypted: bool,
     ) -> String {
         let account_id = env::signer_account_id();
-        let content_type = self.content_types.get(&content_type_name).unwrap();
-        let uuid = nanoid!(); //Uuid::new_v4().to_hyphenated().to_string();
+        let content_type = self.content_types.get(&account_id).unwrap_or_default();
+        let ct = content_type
+            .iter()
+            .find(|ct| ct.name == content_type_name)
+            .cloned()
+            .unwrap();
 
-        let content = Content::new(
-            name,
-            uuid,
-            content_type,
-            is_public,
-            is_encrypted,
-            account_id,
-        );
+        let uuid = nanoid!();
+
+        let content = Content::new(name, uuid, ct, is_public, is_encrypted, account_id);
 
         let content_slug = content.slug.clone();
         self.content.insert(&content.slug, &content);
@@ -130,6 +136,17 @@ impl Cms {
 
     pub fn get_client_registry(&self, account_id: String) -> Option<Vec<String>> {
         return self.client_registry.get(&account_id);
+    }
+}
+
+impl Clone for ContentType {
+    fn clone(&self) -> Self {
+        let fields_lookup_map = LookupMap::new(b"f".to_vec());
+        Self {
+            name: self.name.clone(),
+            description: self.description.clone(),
+            fields: fields_lookup_map,
+        }
     }
 }
 
@@ -239,12 +256,6 @@ mod tests {
             "test_content_type".to_string(),
             content_type_from_db.unwrap().name
         );
-
-        cms.set_content_type(
-            "test_content_type".to_string(),
-            "test_content_type_description".to_string(),
-            Vec::<String>::new(),
-        );
     }
 
     #[test]
@@ -307,7 +318,7 @@ mod tests {
             Vec::<String>::new(),
         );
         content_types = cms.get_content_types();
-        assert_eq!(content_types.len(), 3);
+        assert_eq!(content_types.len(), 4);
     }
 
     #[test]

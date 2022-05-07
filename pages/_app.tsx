@@ -1,21 +1,22 @@
 import * as nearAPI from 'near-api-js'
 import React from 'react'
 import { NetworkConfiguration } from '../types/configuration'
-//import '../styles/globals.css'
+import '../styles/globals.css'
 import type { AppProps } from 'next/app'
 import { NearUser, UserRole } from '../types/app'
 import { useEffect, useState } from 'react'
 import { NearContext } from '../context/NearContext'
 import { CmsContract } from '../types/contract'
   
+const networkConfiguration: NetworkConfiguration = {
+  networkId: 'testnet',
+  nodeUrl: 'https://rpc.testnet.near.org',
+  contractName: 'wickham.testnet',
+  walletUrl: 'https://wallet.testnet.near.org',
+  helperUrl: 'https://helper.testnet.near.org'
+}
+
 const initContract = async () => {
-  const networkConfiguration: NetworkConfiguration = {
-    networkId: 'testnet',
-    nodeUrl: 'https://rpc.testnet.near.org',
-    contractName: 'dev-1651110034797-23872797125041',
-    walletUrl: 'https://wallet.testnet.near.org',
-    helperUrl: 'https://helper.testnet.near.org'
-  }
   const keyStore = new nearAPI.keyStores.BrowserLocalStorageKeyStore() 
   const near = await nearAPI.connect({ keyStore, ...networkConfiguration })
   const walletConnection = new nearAPI.WalletConnection(near, '')
@@ -52,7 +53,7 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
   const setDefaultUser = (accountId: string) => {
     const userRole: UserRole = {
       account_id: accountId,
-      role: 0,
+      role: 3,
     }
 
     setCurrentUser(userRole)
@@ -60,9 +61,14 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
 
   useEffect(() => {  
     initContract().then(({ contract, currentUser, walletConnection }) => {
-      setNearConfig(nearConfig)
+      setNearConfig(networkConfiguration)
       setWalletConnection(walletConnection)
       setContract(contract as CmsContract)
+
+      console.log('user', currentUser)
+      if (currentUser) {
+        setDefaultUser(currentUser.accountId)
+      }
 
       currentUser && cmsContract && (
         cmsContract.get_user_role({ account_id: currentUser.accountId })
@@ -79,7 +85,7 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
 
       // instantiateIpfs(setIpfs)
     })
-  }, [nearConfig])
+  }, [])
 
   const initialState = {
     contract: cmsContract,
@@ -91,9 +97,6 @@ const MyApp = ({ Component, pageProps }: AppProps) => {
 
   return (
     <NearContext.Provider value={initialState}>
-      {cmsContract && (
-        <p>CMS Contract loaded</p>
-      )}
       <Component {...pageProps} />
     </NearContext.Provider>
   )

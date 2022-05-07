@@ -8,6 +8,7 @@ const Nav = (): JSX.Element => {
 
   const signIn = () => {
     if (!wallet || !nearConfig || !contract) {
+      console.error('NO WALLET OR NEAR CONFIG OR CONTRACT')
       return
     }
     

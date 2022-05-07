@@ -2,6 +2,7 @@ import * as nearAPI from 'near-api-js';
 import React from 'react';
 import { UserRole } from '../types/app';
 import { NetworkConfiguration } from '../types/configuration';
+import { CmsContract } from '../types/contract';
 
 export const NearContext = React.createContext({
   contract: null,
@@ -10,7 +11,7 @@ export const NearContext = React.createContext({
   wallet: null,
   setCurrentUser: () => {},
 } as {
-  contract: nearAPI.Contract | null,
+  contract: CmsContract | null,
   currentUser: UserRole | undefined,
   wallet: nearAPI.WalletConnection | null,
   nearConfig: NetworkConfiguration | null,

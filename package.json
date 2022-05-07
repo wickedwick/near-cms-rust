@@ -52,6 +52,9 @@
     "testEnvironment": "node",
     "setupFiles": [
       "./test.config.ts"
-    ]
+    ],
+    "moduleNameMapper": {
+      "\\.(css|less)$": "<rootDir>/styles/__mocks__/styleMock.js"
+    }
   }
 }
