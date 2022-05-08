@@ -8,9 +8,8 @@ near_sdk::setup_alloc!();
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct Cms {
-    //content_types: UnorderedMap<String, ContentType>,
     content_types: LookupMap<String, Vec<ContentType>>,
-    content: UnorderedMap<String, Content>,
+    content: LookupMap<String, UnorderedMap<String, Content>>,
     user_registry: LookupMap<String, Vec<UserRole>>,
     client_registry: LookupMap<String, Vec<String>>,
 }
@@ -19,7 +18,7 @@ impl Default for Cms {
     fn default() -> Self {
         Self {
             content_types: LookupMap::new(b"ct".to_vec()),
-            content: UnorderedMap::new(b"c".to_vec()),
+            content: LookupMap::new(b"c".to_vec()),
             user_registry: LookupMap::new(b"ur".to_vec()),
             client_registry: LookupMap::new(b"cr".to_vec()),
         }
@@ -29,17 +28,14 @@ impl Default for Cms {
 #[near_bindgen]
 impl Cms {
     pub fn set_content_type(&mut self, name: String, description: String, fields: Vec<String>) {
-        let name_clone = name.clone();
         let account_id = env::signer_account_id();
         let mut fields_lookup_map = LookupMap::new(b"f".to_vec());
 
         for field in fields {
-            fields_lookup_map.insert(&name_clone, &field);
+            fields_lookup_map.insert(&name.to_string(), &field);
         }
 
-        // get the content types by user
         let mut content_types = self.content_types.get(&account_id).unwrap_or_default();
-        // add the new content type
         content_types.push(ContentType {
             name,
             description,
@@ -71,33 +67,69 @@ impl Cms {
         is_encrypted: bool,
     ) -> String {
         let account_id = env::signer_account_id();
-        let content_type = self.content_types.get(&account_id).unwrap_or_default();
-        let ct = content_type
+        let uuid = nanoid!();
+        let content_types = self.content_types.get(&account_id.to_string());
+
+        if content_types.is_none() {
+            return "Content type not found".to_string();
+        }
+
+        let content_type = content_types
+            .unwrap()
             .iter()
             .find(|ct| ct.name == content_type_name)
-            .cloned()
-            .unwrap();
+            .cloned();
 
-        let uuid = nanoid!();
+        if content_type.is_none() {
+            return "Content type does not exist".to_string();
+        }
 
-        let content = Content::new(name, uuid, ct, is_public, is_encrypted, account_id);
+        let content = Content::new(
+            name,
+            uuid,
+            content_type.unwrap(),
+            is_public,
+            is_encrypted,
+            account_id.to_string(),
+        );
 
         let content_slug = content.slug.clone();
-        self.content.insert(&content.slug, &content);
+
+        let mut content_map = self
+            .content
+            .get(&account_id.to_string())
+            .unwrap_or_else(|| UnorderedMap::new(b"c".to_vec()));
+
+        content_map.insert(&content_slug, &content);
+        self.content.insert(&account_id.to_string(), &content_map);
         return content_slug;
     }
 
     #[result_serializer(borsh)]
     pub fn get_content(&self, slug: String) -> Option<Content> {
-        return self.content.get(&slug);
+        let account_id = env::signer_account_id();
+        let user_content = self.content.get(&account_id);
+
+        if user_content.is_none() {
+            return None;
+        }
+
+        return user_content.unwrap().get(&slug);
     }
 
     #[result_serializer(borsh)]
     pub fn get_contents(&self) -> Vec<Content> {
-        return self.content.values_as_vector().to_vec();
+        let account_id = env::signer_account_id();
+        return self
+            .content
+            .get(&account_id)
+            .unwrap_or_else(|| UnorderedMap::new(b"c".to_vec()))
+            .values_as_vector()
+            .to_vec();
     }
 
-    pub fn set_user_role(&mut self, account_id: String, user_to_add: String, role: i32) {
+    pub fn set_user_role(&mut self, user_to_add: String, role: i32) {
+        let account_id = env::signer_account_id();
         let mut user_roles = self.user_registry.get(&account_id).unwrap_or_default();
 
         // if user_roles contains a user with the same name, remove it
@@ -119,11 +151,13 @@ impl Cms {
     }
 
     #[result_serializer(borsh)]
-    pub fn get_user_role(&self, account_id: String) -> Option<Vec<UserRole>> {
+    pub fn get_user_role(&self) -> Option<Vec<UserRole>> {
+        let account_id = env::signer_account_id();
         return self.user_registry.get(&account_id);
     }
 
-    pub fn set_client_registry(&mut self, account_id: String, client_to_add: String) {
+    pub fn set_client_registry(&mut self, client_to_add: String) {
+        let account_id = env::signer_account_id();
         let mut clients = self.client_registry.get(&account_id).unwrap_or_default();
 
         if clients.contains(&client_to_add) {
@@ -134,9 +168,17 @@ impl Cms {
         self.client_registry.insert(&account_id, &clients);
     }
 
-    pub fn get_client_registry(&self, account_id: String) -> Option<Vec<String>> {
+    pub fn get_client_registry(&self) -> Option<Vec<String>> {
+        let account_id = env::signer_account_id();
         return self.client_registry.get(&account_id);
     }
+}
+
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct ContentType {
+    pub name: String,
+    pub description: String,
+    pub fields: LookupMap<String, String>,
 }
 
 impl Clone for ContentType {
@@ -150,18 +192,21 @@ impl Clone for ContentType {
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize)]
-pub struct ContentType {
-    pub name: String,
-    pub description: String,
-    pub fields: LookupMap<String, String>,
-}
-
 impl ContentType {
     pub fn new(name: String, description: String) -> Self {
         Self {
             name,
             description,
+            fields: LookupMap::new(b"f".to_vec()),
+        }
+    }
+}
+
+impl Default for ContentType {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            description: String::new(),
             fields: LookupMap::new(b"f".to_vec()),
         }
     }
@@ -197,6 +242,21 @@ impl Content {
             owner,
             created_at: near_sdk::env::block_timestamp(),
             updated_at: near_sdk::env::block_timestamp(),
+        }
+    }
+}
+
+impl Default for Content {
+    fn default() -> Self {
+        Self {
+            name: "".to_string(),
+            slug: "".to_string(),
+            content_type: ContentType::default(),
+            is_public: false,
+            is_encrypted: false,
+            owner: "".to_string(),
+            created_at: 0,
+            updated_at: 0,
         }
     }
 }
@@ -276,15 +336,18 @@ mod tests {
             false,
             true,
         );
-        let content = cms.get_content(slug.to_string());
+        println!("{:?}", slug);
+        let content = cms.get_content(slug.to_string()).unwrap_or_default();
         assert_eq!(
-            content.as_ref().unwrap().content_type.name,
+            content.content_type.name,
             "test_content_type_name".to_string()
         );
-        assert_eq!(content.as_ref().unwrap().is_public, false);
-        assert_eq!(content.as_ref().unwrap().is_encrypted, true);
-        assert_eq!(content.as_ref().unwrap().created_at, 0);
-        assert_eq!(content.as_ref().unwrap().updated_at, 0);
+
+        println!("First assert");
+        assert_eq!(content.is_public, false);
+        assert_eq!(content.is_encrypted, true);
+        assert_eq!(content.created_at, 0);
+        assert_eq!(content.updated_at, 0);
     }
 
     #[test]
@@ -299,6 +362,7 @@ mod tests {
             "test_content_type_description".to_string(),
             Vec::<String>::new(),
         );
+
         cms.set_content_type(
             "test_content_type_name_2".to_string(),
             "test_content_type_description".to_string(),
@@ -361,15 +425,15 @@ mod tests {
         testing_env!(context);
 
         let mut cms = Cms::default();
-        cms.set_user_role("test_user".to_string(), "test_user_id".to_string(), 0);
-        cms.set_user_role("test_user".to_string(), "test_user_id_1".to_string(), 1);
-        cms.set_user_role("test_user".to_string(), "test_user_id_2".to_string(), 2);
-        let mut user_role_vec = cms.get_user_role("test_user".to_string());
+        cms.set_user_role("test_user_id".to_string(), 0);
+        cms.set_user_role("test_user_id_1".to_string(), 1);
+        cms.set_user_role("test_user_id_2".to_string(), 2);
+        let mut user_role_vec = cms.get_user_role();
         assert_eq!(user_role_vec.unwrap().len(), 3);
 
         // Inserting the same user role again should not increase the length of the vector
-        cms.set_user_role("test_user".to_string(), "test_user_id".to_string(), 0);
-        user_role_vec = cms.get_user_role("test_user".to_string());
+        cms.set_user_role("test_user_id".to_string(), 0);
+        user_role_vec = cms.get_user_role();
         assert_eq!(user_role_vec.unwrap().len(), 3);
     }
 
@@ -379,16 +443,16 @@ mod tests {
         testing_env!(context);
 
         let mut cms = Cms::default();
-        cms.set_client_registry("test_client".to_string(), "test_client_id".to_string());
-        cms.set_client_registry("test_client".to_string(), "test_client_id_1".to_string());
-        cms.set_client_registry("test_client".to_string(), "test_client_id_2".to_string());
-        cms.set_client_registry("test_client".to_string(), "test_client_id_3".to_string());
-        let mut client_registry = cms.get_client_registry("test_client".to_string());
+        cms.set_client_registry("test_client_id".to_string());
+        cms.set_client_registry("test_client_id_1".to_string());
+        cms.set_client_registry("test_client_id_2".to_string());
+        cms.set_client_registry("test_client_id_3".to_string());
+        let mut client_registry = cms.get_client_registry();
         assert_eq!(client_registry.unwrap().len(), 4);
 
         // Inserting the same client id again should not change the length of the vector
-        cms.set_client_registry("test_client".to_string(), "test_client_id_3".to_string());
-        client_registry = cms.get_client_registry("test_client".to_string());
+        cms.set_client_registry("test_client_id_3".to_string());
+        client_registry = cms.get_client_registry();
         assert_eq!(client_registry.unwrap().len(), 4);
     }
 }
